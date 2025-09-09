@@ -2,146 +2,146 @@ using System;
 
 namespace UnityEngine.Extension
 {
-    public class ScalarFlag : IComparable, IComparable<ScalarFlag>, IComparable<bool>, IEquatable<ScalarFlag>, IEquatable<bool>
+    public interface IReadOnlyScalarFlag
     {
-        private static readonly int _false = 0;
-        private static readonly int _true = 1;
+        public bool Value { get; }
+        public event ScalarFlagUpdate OnUpdate;
+    }
+    
+    public delegate void ScalarFlagUpdate(bool value);
+    
+    public interface IScalarFlag : IReadOnlyScalarFlag
+    {
+        public new bool Value { get; set; }
+        public void Reset(bool defaultValue = false);
+    }
 
-        private int _backingValue;
-
-        public ScalarFlag(bool value)
+    public sealed class ScalarFlag : IScalarFlag
+    {
+        [Flags]
+        public enum ValueBehaviour
         {
-            _backingValue = value ? _true : _false;
+            Default = 0,
+            RestrictFalse = 1,
+            RestrictTrue = 2,
+            Binary = RestrictFalse | RestrictTrue
         }
 
-        public bool AsBool()
+        private const int _TrueValue = 1;
+        private const int _FalseValue = 0;
+
+        private int _requestedValue;
+        private int _overrideValue;
+
+        public event ScalarFlagUpdate OnUpdate
         {
-            return _backingValue > _false;
+            add => _onUpdate += value;
+            remove => _onUpdate -= value;
+        }
+        private ScalarFlagUpdate _onUpdate;
+        private readonly ValueBehaviour _behaviour = ValueBehaviour.Default;
+
+        public bool Value
+        {
+            get => _requestedValue > _FalseValue &&  _overrideValue > _FalseValue;
+            set
+            {
+                bool previousValue = Value;
+                if (value)
+                {
+                    if (_behaviour.HasFlag(ValueBehaviour.RestrictTrue))
+                    {
+                        _requestedValue = Mathf.Min(_requestedValue + 1, _TrueValue);
+                    }
+                    else
+                    {
+                        _requestedValue++;
+                    }
+                }
+                else
+                {
+                    if (_behaviour.HasFlag(ValueBehaviour.RestrictFalse))
+                    {
+                        _requestedValue = Mathf.Max(_requestedValue - 1, _FalseValue);
+                    }
+                    else
+                    {
+                        _requestedValue--;
+                    }
+                }
+
+                bool newValue = Value;
+                if (previousValue != newValue)
+                {
+                    _onUpdate?.Invoke(newValue);
+                }
+            }
+        }
+        
+        private ScalarFlag() { }
+
+        public ScalarFlag(bool value, ScalarFlagUpdate onUpdate = null)
+        {
+            _behaviour = ValueBehaviour.Default;
+            _requestedValue = value ? _TrueValue : _FalseValue;
+            _overrideValue = _TrueValue;
+            _onUpdate = onUpdate;
         }
 
-        public void Reset(bool defaultValue = false)
+        public ScalarFlag(bool value, ValueBehaviour behaviour, ScalarFlagUpdate onUpdate = null)
         {
-            _backingValue = defaultValue ? _true : _false;
+            _behaviour = behaviour;
+            _requestedValue = value ? _TrueValue : _FalseValue;
+            _overrideValue = _TrueValue;
+            _onUpdate = onUpdate;
         }
 
-        public void Set(bool value)
+        public void SetOverrideValue(bool value)
         {
+            bool previousValue = Value;
             if (value)
             {
-                _backingValue++;
+                if (_behaviour.HasFlag(ValueBehaviour.RestrictTrue))
+                {
+                    _overrideValue = Mathf.Min(_overrideValue + 1, _TrueValue);
+                }
+                else
+                {
+                    _overrideValue++;
+                }
             }
             else
             {
-                _backingValue--;
+                if (_behaviour.HasFlag(ValueBehaviour.RestrictFalse))
+                {
+                    _overrideValue = Mathf.Max(_overrideValue - 1, _FalseValue);
+                }
+                else
+                {
+                    _overrideValue--;
+                }
             }
-        }
 
-        public int CompareTo(object obj)
-        {
-            if (obj == null)
+            bool newValue = Value;
+            if (previousValue != newValue)
             {
-                return 1;
+                _onUpdate?.Invoke(newValue);
             }
-
-            if (obj is ScalarFlag otherFlag)
+        }
+        
+        public void Reset(bool defaultValue = false)
+        {
+            bool previousValue = Value;
+            _requestedValue = defaultValue ? _TrueValue : _FalseValue;
+            if (previousValue != Value)
             {
-                return CompareTo(otherFlag);
+                _onUpdate?.Invoke(previousValue);
             }
-            else if (obj is bool otherBool)
-            {
-                return CompareTo(otherBool);
-            }
-            throw new ArgumentException("Object is not comparible to ScalarFlag");
-        }
-
-        public int CompareTo(ScalarFlag other)
-        {
-            return _backingValue.CompareTo(other._backingValue);
-        }
-
-        public int CompareTo(bool other)
-        {
-            return AsBool().CompareTo(other);
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj is ScalarFlag otherFlag)
-            {
-                return Equals(otherFlag);
-            }
-            else if (obj is bool otherBool)
-            {
-                return Equals(otherBool);
-            }
-            return false;
-        }
-
-        public bool Equals(ScalarFlag other)
-        {
-            return Equals(other.AsBool());
-        }
-
-        public bool Equals(bool other)
-        {
-            return AsBool() == other;
         }
 
         public override string ToString()
         {
-            return AsBool().ToString();
-        }
-
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(_backingValue);
-        }
-
-        public static bool operator ==(ScalarFlag lhs, ScalarFlag rhs)
-        {
-            return lhs.Equals(rhs);
-        }
-
-        public static bool operator !=(ScalarFlag lhs, ScalarFlag rhs)
-        {
-            return !(lhs == rhs);
-        }
-
-        public static bool operator ==(ScalarFlag lhs, bool rhs)
-        {
-            return lhs.Equals(rhs);
-        }
-
-        public static bool operator !=(ScalarFlag lhs, bool rhs)
-        {
-            return !(lhs == rhs);
-        }
-
-        public static bool operator ==(bool lhs, ScalarFlag rhs)
-        {
-            return lhs.Equals(rhs);
-        }
-
-        public static bool operator !=(bool lhs, ScalarFlag rhs)
-        {
-            return !(lhs == rhs);
-        }
-
-        public static implicit operator bool(ScalarFlag scalarFlag)
-        {
-            return scalarFlag.AsBool();
-        }
-
-        public static ScalarFlag operator ++(ScalarFlag scalarFlag)
-        {
-            scalarFlag._backingValue++;
-            return scalarFlag;
-        }
-
-        public static ScalarFlag operator --(ScalarFlag scalarFlag)
-        {
-            scalarFlag._backingValue--;
-            return scalarFlag;
+            return Value.ToString();
         }
     }
 }

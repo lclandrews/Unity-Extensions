@@ -155,23 +155,18 @@ namespace UnityEngine.Extension
 
             public bool MoveNext()
             {
-                if (_groupIndex < _collection._groups.Count)
+                IList<List<T>> groups = _collection._groups.Values;
+                int totalGroups = groups.Count;
+                while (_groupIndex < totalGroups)
                 {
-                    if (_elementIndex < _collection._groups.Values[_groupIndex].Count)
+                    List<T> currentGroup = groups[_groupIndex];
+                    if (_elementIndex < currentGroup.Count)
                     {
-                        _current = _collection._groups.Values[_groupIndex][_elementIndex];
-
-                        if (_elementIndex < _collection._groups.Values[_groupIndex].Count - 1)
-                        {
-                            _elementIndex++;
-                        }
-                        else
-                        {
-                            _elementIndex = 0;
-                            _groupIndex++;
-                        }
+                        _current = currentGroup[_elementIndex++];
                         return true;
                     }
+                    _groupIndex++;
+                    _elementIndex = 0;
                 }
                 return false;
             }
